@@ -2,79 +2,52 @@ package db
 
 import (
 	"database/sql"
-	"fmt"
-	"time"
-
-	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
+	"time"
 )
 
 type Databases struct {
-	Username string
-	Password string
-	Host     string
-	DBName   string
-	Port     int
-	DB       *gorm.DB
+	Dialect         gorm.Dialector
+	DB              *gorm.DB
+	maxIdleConns    int
+	maxOpenConns    int
+	connMaxLifetime time.Duration
 }
 
-func New(username, password, host, dbName string, port int) *Databases {
+func New(dialect gorm.Dialector) *Databases {
 	return &Databases{
-		Username: username,
-		Password: password,
-		Host:     host,
-		Port:     port,
-		DBName:   dbName,
+		Dialect: dialect,
 	}
 }
 
-func (m *Mysql) OpenConnection() {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-		m.Username, m.Password, m.Addr, m.Port, m.DBName)
-	var level gormLogger.LogLevel
-	if m.logger.Level == "error" {
-		level = gormLogger.Error
-	} else {
-		level = gormLogger.Info
-	}
-
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
-		Logger: gormLogger.New(m.logger.GetLogger(), gormLogger.Config{
-			SlowThreshold:             time.Second,
-			Colorful:                  true,
-			IgnoreRecordNotFoundError: true,
-			LogLevel:                  level,
-		}),
-	})
+func (d *Databases) Connection(maxIdleConns, maxOpenConns int, connMaxLifetime time.Duration) error {
+	db, err := gorm.Open(d.Dialect)
 	if err != nil {
-		m.logger.Fatalf(err.Error())
-		return
+		return err
 	}
-	// 获取通用数据库对象 sql.DB ，然后使用其提供的功能
 	sqlDB, err := db.DB()
 	if err != nil {
-		m.logger.Fatalf(err.Error())
-		return
+		return err
 	}
 	// SetMaxIdleConns 用于设置连接池中空闲连接的最大数量。
-	sqlDB.SetMaxIdleConns(10)
-
+	sqlDB.SetMaxIdleConns(maxIdleConns)
+	d.maxIdleConns = maxIdleConns
 	// SetMaxOpenConns 设置打开数据库连接的最大数量。
-	sqlDB.SetMaxOpenConns(100)
-
+	sqlDB.SetMaxOpenConns(maxOpenConns)
+	d.maxOpenConns = maxOpenConns
 	// SetConnMaxLifetime 设置了连接可复用的最大时间。
-	sqlDB.SetConnMaxLifetime(time.Hour)
-	m.DB = db
-	go m.reconnection(sqlDB)
-	return
+	sqlDB.SetConnMaxLifetime(connMaxLifetime)
+	d.connMaxLifetime = connMaxLifetime
+	go d.reconnection(sqlDB)
+	return nil
 }
 
-func (m *Mysql) reconnection(db *sql.DB) {
+func (d *Databases) reconnection(db *sql.DB) {
 	for {
 		if err := db.Ping(); err != nil {
 			time.Sleep(5 * time.Second)
-			m.OpenConnection()
+			d.Connection(d.maxIdleConns, d.maxOpenConns, d.connMaxLifetime)
 			break
 		}
 		time.Sleep(time.Second * 5)
@@ -82,11 +55,6 @@ func (m *Mysql) reconnection(db *sql.DB) {
 
 }
 
-func (m *Mysql) Scopes(option ...func(db *gorm.DB) *gorm.DB) *gorm.DB {
-	return m.DB.Scopes(option...)
+func (d *Databases) SetLogger(p gormLogger.Interface) {
+	d.DB.Logger = p
 }
-
-func (m *Mysql) DBER() *gorm.DB {
-	return m.DB
-}
-
