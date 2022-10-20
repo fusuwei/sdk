@@ -2,9 +2,10 @@ package db
 
 import (
 	"database/sql"
+	"time"
+
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
-	"time"
 )
 
 type Databases struct {
@@ -40,6 +41,7 @@ func (d *Databases) Connection(maxIdleConns, maxOpenConns int, connMaxLifetime t
 	sqlDB.SetConnMaxLifetime(connMaxLifetime)
 	d.connMaxLifetime = connMaxLifetime
 	go d.reconnection(sqlDB)
+	d.DB = db
 	return nil
 }
 
