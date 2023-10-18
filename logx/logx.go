@@ -1,35 +1,82 @@
 package logx
 
 import (
-	"context"
 	"io"
 	"log/slog"
+	"strings"
 )
 
-var logger *slog.Logger
+var Log *slog.Logger
 
-type Option func(opt *slog.HandlerOptions)
+type Option func(c *config)
 
-func WithSource(ok bool) Option {
-	return func(opt *slog.HandlerOptions) {
-		opt.AddSource =
+type config struct {
+	AddSource   bool
+	Level       slog.Level
+	HandlerType string
+	handler     slog.Handler
+}
+
+func WithSource(addSource bool) Option {
+	return func(c *config) {
+		c.AddSource = addSource
 	}
 }
 
-func New(opt slog.HandlerOptions) {
-
+func WithLevel(level string) Option {
+	return func(c *config) {
+		switch strings.ToLower(level) {
+		case "info":
+			c.Level = slog.LevelInfo
+		case "debug":
+			c.Level = slog.LevelDebug
+		case "warn", "warning":
+			c.Level = slog.LevelWarn
+		case "error":
+			c.Level = slog.LevelError
+		}
+	}
 }
 
-func test(level slog.Level, addSource bool,writer io.Writer) {
-	opts := slog.HandlerOptions{
-		AddSource: addSource,
-		Level:     level,
+func WithHandlerType(handlerType string) Option {
+	return func(c *config) {
+		c.HandlerType = handlerType
+	}
+}
+
+func WithHandler(handler slog.Handler) Option {
+	return func(c *config) {
+		c.handler = handler
+	}
+}
+
+func newConfig() config {
+	return config{
+		AddSource:   false,
+		Level:       slog.LevelError,
+		HandlerType: "json",
+		handler:     nil,
+	}
+}
+
+func New(writer io.Writer, opts ...Option) {
+	conf := newConfig()
+	for _, opt := range opts {
+		opt(&conf)
+	}
+	hopts := &slog.HandlerOptions{
+		AddSource: conf.AddSource,
+		Level:     conf.Level,
 	}
 
-	loggerJSON := slog.New(slog.NewJSONHandler(writer, &opts))
-
-	loggerJSON = loggerJSON.WithGroup("g1").With("k1", 1).WithGroup("g2").With("k2", 2)
-	loggerJSON.Info("hello", "标题", "路多辛的博客", "2312", "11")
-	loggerJSON.LogAttrs(context.Background(), slog.LevelDebug, "k1", slog.String("dsa", "sss"))
-
+	if conf.handler != nil {
+		Log = slog.New(conf.handler)
+	} else {
+		switch conf.HandlerType {
+		case "text":
+			Log = slog.New(slog.NewTextHandler(writer, hopts))
+		default:
+			Log = slog.New(slog.NewJSONHandler(writer, hopts))
+		}
+	}
 }
