@@ -13,9 +13,7 @@ type Config struct {
 	*viper.Viper
 }
 
-type Option interface {
-	Apply(c *Config)
-}
+type Option func(config *Config)
 
 func New(configPath string) *Config {
 	c := &Config{
@@ -35,14 +33,6 @@ func New(configPath string) *Config {
 	err := c.ReadInConfig()
 	if err != nil {
 		panic(fmt.Sprintf("read config failed: %v", err))
-	}
-	return c
-}
-
-func NewWithOptions(options ...Option) *Config {
-	c := &Config{}
-	for index := range options {
-		options[index].Apply(c)
 	}
 	return c
 }
