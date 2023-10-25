@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"time"
 )
 
 type RoundTripper interface {
@@ -12,16 +13,29 @@ type RoundTripper interface {
 
 type Client struct {
 	PathParams            map[string]string
-	DebugLog              bool
 	AllowGetMethodPayload bool
-
-	beforeRequest []RequestMiddleware
-	afterResponse []ResponseMiddleware
 
 	httpClient *http.Client
 }
 
-func (c *Client) RoundTrip(ctx context.Context, r *Request) (*Response, error) {
+func newClient() *Client {
+	t := &http.Transport{
+		DisableKeepAlives: false,                          //关闭连接复用，因为后台连接过多最后会造成端口耗尽
+		MaxIdleConns:      -1,                             //最大空闲连接数量
+		IdleConnTimeout:   time.Duration(3 * time.Second), //空闲连接超时时间
+	}
+
+	httpClient := &http.Client{
+		Transport: t,
+		Timeout:   2 * time.Minute,
+	}
+
+	return &Client{
+		httpClient: httpClient,
+	}
+}
+
+func (c *Client) roundTrip(ctx context.Context, r *Request) (resp *Response, err error) {
 	resp = &Response{Request: r}
 
 	host := r.getHeader("Host")
@@ -29,10 +43,14 @@ func (c *Client) RoundTrip(ctx context.Context, r *Request) (*Response, error) {
 		host = r.URL.Host
 	}
 
+	if r.Timeout != 0 {
+		c.httpClient.Timeout = r.Timeout
+	}
+
 	var reqBody io.ReadCloser
 	if r.GetBody != nil {
-		reqBody, resp.Err = r.GetBody()
-		if resp.Err != nil {
+		reqBody, err = r.GetBody()
+		if err != nil {
 			return
 		}
 	}
@@ -45,13 +63,24 @@ func (c *Client) RoundTrip(ctx context.Context, r *Request) (*Response, error) {
 		Proto:         "HTTP/1.1",
 		ProtoMajor:    1,
 		ProtoMinor:    1,
-		ContentLength: contentLength,
+		ContentLength: int64(len(r.Body)),
 		Body:          reqBody,
 		GetBody:       r.GetBody,
 		Close:         r.close,
 	}
 
-	return nil, nil
+	for _, cookie := range r.Cookies {
+		req.AddCookie(cookie)
+	}
+	if ctx != nil {
+		req = req.WithContext(ctx)
+	}
+	r.RawRequest = req
+
+	var httpResponse *http.Response
+	httpResponse, err = c.httpClient.Do(r.RawRequest)
+	resp.Response = httpResponse
+	return
 }
 
 func (c *Client) isPayloadForbid(m string) bool {
