@@ -195,6 +195,13 @@ func (r *Request) SetFormData(data map[string]string) *Request {
 	return r
 }
 
+func (r *Request) SetHeaders(headers map[string]string) {
+	for k, v := range headers {
+		r.SetHeader(k, v)
+	}
+	return r
+}
+
 func (r *Request) SetHeader(key, value string) *Request {
 	if r.Headers == nil {
 		r.Headers = make(http.Header)
