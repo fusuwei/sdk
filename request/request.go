@@ -195,7 +195,7 @@ func (r *Request) SetFormData(data map[string]string) *Request {
 	return r
 }
 
-func (r *Request) SetHeaders(headers map[string]string) {
+func (r *Request) SetHeaders(headers map[string]string) *Request {
 	for k, v := range headers {
 		r.SetHeader(k, v)
 	}
