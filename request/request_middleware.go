@@ -35,7 +35,7 @@ func parseRequestBody(c *Client, r *Request) (err error) {
 	//}
 
 	if r.unMarshalBody != nil {
-		err = r.handleMarshalBody(r.Body)
+		err = r.handleMarshalBody(r.unMarshalBody)
 		if err != nil {
 			return
 		}

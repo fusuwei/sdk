@@ -182,6 +182,19 @@ func (r *Request) SetContentType(contentType string) *Request {
 	return r.SetHeader(ContentType, contentType)
 }
 
+func (r *Request) SetFormData(data map[string]string) *Request {
+	if len(data) == 0 {
+		return r
+	}
+	formData := url.Values{}
+	for k, v := range data {
+		formData.Add(k, v)
+	}
+	r.SetContentType(FormContentType)
+	r.SetBodyBytes([]byte(formData.Encode()))
+	return r
+}
+
 func (r *Request) SetHeader(key, value string) *Request {
 	if r.Headers == nil {
 		r.Headers = make(http.Header)
@@ -199,4 +212,15 @@ func (r *Request) getHeader(key string) string {
 
 func Get(url string) (resp *Response, err error) {
 	return New().Request(http.MethodGet, url)
+}
+
+func Post(url string, body interface{}, form map[string]string) (resp *Response, err error) {
+	req := New()
+	if body != nil {
+		req.SetBody(body).SetContentType(JsonContentType)
+	}
+	if form != nil {
+		req.SetFormData(form)
+	}
+	return req.Request(http.MethodPost, url)
 }
