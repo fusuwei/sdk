@@ -1,6 +1,9 @@
 package request
 
-import "net/http"
+import (
+	"errors"
+	"net/http"
+)
 
 type (
 	// RequestMiddleware type is for request middleware, called before a request is sent
@@ -50,4 +53,18 @@ func parseRequestBody(c *Client, r *Request) (err error) {
 	}
 	r.SetContentType(http.DetectContentType(r.Body))
 	return
+}
+
+// generate URL
+func parseRequestURL(c *Client, r *Request) error {
+	if r.URL == nil {
+		return errors.New("url is empty")
+	}
+	query := r.URL.Query()
+	for k, v := range r.Queries {
+		query.Del(k)
+		query.Add(k, v)
+	}
+	r.URL.RawQuery = query.Encode()
+	return nil
 }

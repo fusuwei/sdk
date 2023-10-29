@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -23,6 +24,7 @@ type Request struct {
 	GetBody    GetContentFunc // 获取请求主体方法
 	Cookies    []*http.Cookie // cookie
 	Timeout    time.Duration  // 超时时间
+	Queries    map[string]string
 	// 重试
 	retryOption *retryOption
 	client      *Client
@@ -42,11 +44,13 @@ type GetContentFunc func() (io.ReadCloser, error)
 func New() *Request {
 	beforeRequest := []RequestMiddleware{
 		parseRequestBody,
+		parseRequestURL,
 	}
 
 	return &Request{
 		Headers:          http.Header{},
 		Cookies:          make([]*http.Cookie, 0),
+		Queries:          make(map[string]string, 0),
 		retryOption:      nil,
 		client:           nil,
 		close:            false,
@@ -59,6 +63,17 @@ func New() *Request {
 }
 
 func (r *Request) Do(ctx context.Context) (resp *Response, err error) {
+	if r.Method == "" {
+		return nil, errors.New("method is empty")
+	}
+	if r.RowUrl == "" {
+		return nil, errors.New("url is empty")
+	}
+	r.URL, err = url.Parse(r.RowUrl)
+	if err != nil {
+		return
+	}
+
 	if r.client == nil {
 		r.client = newClient()
 	}
@@ -86,15 +101,24 @@ func (r *Request) do(ctx context.Context) (resp *Response, err error) {
 	return
 }
 
-func (r *Request) Request(method, rowUrl string) (resp *Response, err error) {
-	r.URL, err = url.Parse(rowUrl)
-	if err != nil {
-		return
-	}
+func (r *Request) SetMethod(method string) *Request {
+	r.Method = method
+	return r
+}
+func (r *Request) SetRowUrl(rowUrl string) *Request {
+	r.RowUrl = rowUrl
+	return r
+}
+
+func (r *Request) SetQuery(queries map[string]string) *Request {
+	r.Queries = queries
+	return r
+}
+
+func (r *Request) Request(method, rowUrl string) *Request {
 	r.Method = method
 	r.RowUrl = rowUrl
-	resp, err = r.Do(context.Background())
-	return
+	return r
 }
 
 func (r *Request) SetBody(body interface{}) *Request {
@@ -218,7 +242,7 @@ func (r *Request) getHeader(key string) string {
 }
 
 func Get(url string) (resp *Response, err error) {
-	return New().Request(http.MethodGet, url)
+	return New().Request(http.MethodGet, url).Do(context.Background())
 }
 
 func Post(url string, body interface{}, form map[string]string) (resp *Response, err error) {
@@ -229,5 +253,5 @@ func Post(url string, body interface{}, form map[string]string) (resp *Response,
 	if form != nil {
 		req.SetFormData(form)
 	}
-	return req.Request(http.MethodPost, url)
+	return req.Request(http.MethodPost, url).Do(context.Background())
 }

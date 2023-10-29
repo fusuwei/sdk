@@ -34,7 +34,7 @@ func (r *Response) ToBytes() (body []byte, err error) {
 		}
 		r.body = body
 	}()
-	body, err = io.ReadAll(r.Body)
+	body, err = io.ReadAll(r.Response.Body)
 	return
 }
 
