@@ -32,6 +32,7 @@ func (d *Databases) Connection(maxIdleConns, maxOpenConns int, connMaxLifetime t
 	if err != nil {
 		return err
 	}
+	d.sqlDB = sqlDB
 	// SetMaxIdleConns 用于设置连接池中空闲连接的最大数量。
 	sqlDB.SetMaxIdleConns(maxIdleConns)
 	d.maxIdleConns = maxIdleConns
