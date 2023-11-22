@@ -11,6 +11,7 @@ import (
 type Databases struct {
 	Dialect         gorm.Dialector
 	DB              *gorm.DB
+	sqlDB           *sql.DB
 	maxIdleConns    int
 	maxOpenConns    int
 	connMaxLifetime time.Duration
@@ -59,4 +60,8 @@ func (d *Databases) reconnection(db *sql.DB) {
 
 func (d *Databases) SetLogger(p gormLogger.Interface) {
 	d.DB.Logger = p
+}
+
+func (d *Databases) Close() {
+	d.sqlDB.Close()
 }

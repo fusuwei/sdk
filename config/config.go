@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/spf13/viper"
 	"path/filepath"
+	"strings"
 )
 
 type Config struct {
@@ -23,7 +24,7 @@ func New(configPath string) *Config {
 	}
 	if configPath != "" {
 		c.Path, c.Name = filepath.Split(configPath)
-		c.Type = filepath.Ext(configPath)
+		c.Type = strings.Trim(filepath.Ext(configPath), ".")
 	}
 
 	c.Viper = viper.GetViper()
